@@ -1,0 +1,56 @@
+name: Publish composition build
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version of the artifacts and tag of the release, for example 6.2.0-composition-1
+        required: true
+      ref:
+        description: Branch, tag, or commit to build
+        required: true
+        default: main
+
+permissions: {}
+
+jobs:
+  publish:
+    name: Publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ inputs.version }}
+      REF: ${{ inputs.ref }}
+      ARCHIVE: junit-${{ inputs.version }}-maven-repository.zip
+    steps:
+    - name: Check out repository
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        ref: ${{ inputs.ref }}
+        fetch-depth: 1
+        persist-credentials: false
+    - name: Set up JDK 25
+      uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+      with:
+        distribution: temurin
+        java-version: 25
+    - name: Build artifacts
+      run: >
+        ./gradlew
+        -Pversion="$VERSION"
+        -Ppublishing.signArtifacts=false
+        -Dmaven.repo.local="$RUNNER_TEMP/m2"
+        publishToMavenLocal
+    - name: Package Maven repository
+      run: cd "$RUNNER_TEMP/m2" && zip -qr "$RUNNER_TEMP/$ARCHIVE" org/junit
+    - name: Create release
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        gh release create "$VERSION" "$RUNNER_TEMP/$ARCHIVE" \
+          --repo "$GITHUB_REPOSITORY" \
+          --target "$(git rev-parse HEAD)" \
+          --title "JUnit $VERSION" \
+          --prerelease \
+          --notes "JUnit built from \`$REF\` ($(git rev-parse --short HEAD)) with version \`$VERSION\`. Unzip \`$ARCHIVE\` into the local Maven repository (\`~/.m2/repository\`)."
