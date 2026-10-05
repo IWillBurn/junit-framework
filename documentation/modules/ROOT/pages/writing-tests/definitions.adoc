@@ -23,4 +23,5 @@ Test Method::
 any instance method that is directly annotated or meta-annotated with
 `@Test`, `@RepeatedTest`, `@ParameterizedTest`, `@TestFactory`, or `@TestTemplate`.
 With the exception of `@Test`, these create a _container_ in the test tree that groups
-_tests_ or, potentially (for `@TestFactory`), other _containers_.
+_tests_ or, potentially (for `@TestFactory` and for test templates whose invocations are
+composed via `@InvocationComposition`), other _containers_.

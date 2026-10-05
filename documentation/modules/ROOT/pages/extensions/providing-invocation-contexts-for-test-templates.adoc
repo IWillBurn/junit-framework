@@ -49,3 +49,32 @@ the test class instance differently, or multiple times without modifying the con
 Please refer to the implementations of xref:writing-tests/repeated-tests.adoc[] or
 xref:writing-tests/parameterized-classes-and-tests.adoc[Parameterized Tests] which use this extension point
 to provide their functionality.
+
+[[enclosing-nested-invocations]]
+== Enclosing Nested Invocations
+
+If an `@InvocationComposition` declaration places another provider on a level below the
+invocations of your provider, each of your invocations becomes a container for nested
+invocations (see xref:writing-tests/test-templates.adoc#composition[]). A provider must
+explicitly support this by overriding the experimental
+`mayEncloseTestTemplateInvocations()` method of `{TestTemplateInvocationContextProvider}`
+to return `true`; otherwise, the test template fails with a descriptive error before any
+invocation is executed. Supporting nested invocations changes the following for the
+invocations of your provider.
+
+* The additional extensions returned by `getAdditionalExtensions()` are registered once and
+  apply to all nested invocations, possibly concurrently. An `ExecutionCondition` is
+  evaluated for the enclosing invocation and for each nested invocation, and a `TestWatcher`
+  is notified about every nested test.
+* `prepareInvocation()` is called once with the extension context of the enclosing
+  invocation, which provides a test instance only with the `PER_CLASS` lifecycle. Its
+  `Store` is closed after all nested invocations have finished.
+* Providers of nested levels are asked for support and for invocation contexts once per
+  enclosing invocation, with the extension context of that invocation. State they store in
+  the `Store` of that context is therefore kept per enclosing invocation, while state stored
+  for an enclosing context remains visible to them.
+
+A provider that counts the outcomes of its own invocations, for example a retry extension,
+can store a state object in the `Store` of its invocation in `prepareInvocation()` and look
+it up from the extension context of a nested test: the lookup finds the state of the
+nearest enclosing invocation.

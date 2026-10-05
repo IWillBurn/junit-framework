@@ -89,6 +89,14 @@ repository on GitHub.
 * Jupiter configuration parameters are documented in `META-INF/junit-platform-configuration-metadata.json`
 * The `junit.jupiter.execution.parallel.config.executor-service` configuration parameter
   now defaults to `WORKER_THREAD_POOL` when parallel execution is enabled.
+* New experimental `@InvocationComposition` annotation that places the invocations of
+  selected test template providers on separate, nested levels of the test tree instead of
+  chaining them, for example to execute all sets of arguments of a `@ParameterizedTest`
+  within each repetition of a `@RepeatedTest`. Providers whose invocations enclose nested
+  invocations must declare this via the new experimental
+  `TestTemplateInvocationContextProvider.mayEncloseTestTemplateInvocations()`
+  method; the built-in providers for `@ParameterizedTest` and `@RepeatedTest` do so. See
+  xref:writing-tests/test-templates.adoc#composition[Composing Invocations of Several Providers].
 
 [[v6.2.0-M1-junit-vintage]]
 === JUnit Vintage

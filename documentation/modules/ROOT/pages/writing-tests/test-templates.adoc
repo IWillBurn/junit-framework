@@ -11,3 +11,67 @@ xref:extensions/providing-invocation-contexts-for-test-templates.adoc[] for usag
 NOTE: xref:writing-tests/repeated-tests.adoc[] and
 xref:writing-tests/parameterized-classes-and-tests.adoc[Parameterized Tests] are built-in specializations of
 test templates.
+
+[[composition]]
+== Composing Invocations of Several Providers
+
+If several providers are active for a test template method, their invocations are chained
+by default. For example, combining `@RepeatedTest(2)` with a `@ParameterizedTest` that has
+two sets of arguments results in four sibling invocations: the two repetitions followed by
+the two sets of arguments.
+
+The experimental `@InvocationComposition` annotation places the providers that belong to
+the listed annotation types on separate _levels_ of the test tree instead. Each listed
+annotation type adds a level _below_ the chained invocations of the other providers, and
+each invocation of an enclosing level becomes a container for the invocations of the next
+level. The following test template executes all sets of arguments within each repetition.
+
+[source,java,indent=0]
+----
+@RepeatedTest(3)
+@ParameterizedTest
+@ValueSource(strings = { "foo", "bar" })
+@InvocationComposition(levels = ParameterizedTest.class)
+void argumentsWithinEachRepetition(String value) {
+    // ...
+}
+----
+
+....
+└─ argumentsWithinEachRepetition(String) ✔
+   ├─ repetition 1 of 3 ✔
+   │  ├─ [1] value = "foo" ✔
+   │  └─ [2] value = "bar" ✔
+   ├─ repetition 2 of 3 ✔
+   │  ├─ [1] value = "foo" ✔
+   │  └─ [2] value = "bar" ✔
+   └─ repetition 3 of 3 ✔
+      ├─ [1] value = "foo" ✔
+      └─ [2] value = "bar" ✔
+....
+
+A provider belongs to an annotation type if the annotation type is directly or
+meta-annotated with `@ExtendWith` declaring the provider's class. Providers that are
+registered in any other way — directly via `@ExtendWith` on a method or class, via
+`@RegisterExtension`, via automatic registration, or by another extension — do not belong to
+any annotation type and always stay on the outermost level. This includes the built-in
+provider for `@RepeatedTest`: listing `RepeatedTest.class` is a configuration error, and
+repetitions always stay on the outermost level. To make a custom provider eligible for a
+level, register it via `@ExtendWith` on a dedicated annotation and list that annotation.
+Extension libraries may declare a level for their own annotation by meta-annotating it with
+`@InvocationComposition`. If declarations are found on several elements, the nearest one
+(method, test class, superclass, interface, enclosing class) defines the outermost levels.
+Without any declaration, the behavior is unchanged.
+
+Please note the following when composing invocations.
+
+* Each nested level is provided anew for each enclosing invocation, and invocation indices
+  are counted per enclosing invocation.
+* If the repetitions of a `@RepeatedTest` enclose nested invocations, a repetition counts as
+  failed if at least one of its nested tests fails, and a repetition that is disabled
+  because the failure threshold has been exceeded is skipped as a whole.
+* The arguments of an enclosing invocation of a `@ParameterizedTest`, including mutable
+  argument objects, are shared by all of its nested invocations. Arguments that implement
+  `AutoCloseable` are closed after all nested invocations have finished.
+* Execution conditions are evaluated for each enclosing invocation as well as for each
+  nested invocation.
