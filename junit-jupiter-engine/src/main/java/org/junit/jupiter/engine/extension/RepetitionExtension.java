@@ -13,6 +13,8 @@ package org.junit.jupiter.engine.extension;
 import static org.junit.jupiter.api.extension.ConditionEvaluationResult.disabled;
 import static org.junit.jupiter.api.extension.ConditionEvaluationResult.enabled;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.RepetitionInfo;
@@ -36,11 +38,25 @@ import org.junit.jupiter.api.extension.TestWatcher;
  * exceeded</li>
  * </ul>
  *
+ * <p>An instance is created for each repetition. If the repetition has nested
+ * invocations due to an {@link org.junit.jupiter.api.InvocationComposition
+ * @InvocationComposition} declaration, the instance is inherited by all nested
+ * invocations. Therefore, a failed repetition is counted at most once, no
+ * matter how many of its nested tests fail, and the execution condition is
+ * evaluated once per repetition: for the repetition itself, before any of its
+ * nested invocations, whose evaluations yield the same result. Without nested
+ * invocations, each instance is used for exactly one test, so both are
+ * evaluated exactly once anyway.
+ *
  * @since 5.0
  */
 class RepetitionExtension implements ParameterResolver, TestWatcher, ExecutionCondition {
 
 	private final DefaultRepetitionInfo repetitionInfo;
+
+	private final AtomicBoolean failureCounted = new AtomicBoolean();
+
+	private volatile @Nullable ConditionEvaluationResult conditionEvaluationResult;
 
 	RepetitionExtension(DefaultRepetitionInfo repetitionInfo) {
 		this.repetitionInfo = repetitionInfo;
@@ -63,11 +79,27 @@ class RepetitionExtension implements ParameterResolver, TestWatcher, ExecutionCo
 
 	@Override
 	public void testFailed(ExtensionContext context, @Nullable Throwable cause) {
-		this.repetitionInfo.failureCount().incrementAndGet();
+		if (this.failureCounted.compareAndSet(false, true)) {
+			this.repetitionInfo.failureCount().incrementAndGet();
+		}
 	}
 
 	@Override
 	public ConditionEvaluationResult evaluateExecutionCondition(ExtensionContext context) {
+		ConditionEvaluationResult result = this.conditionEvaluationResult;
+		if (result == null) {
+			synchronized (this) {
+				result = this.conditionEvaluationResult;
+				if (result == null) {
+					result = evaluateFailureThreshold();
+					this.conditionEvaluationResult = result;
+				}
+			}
+		}
+		return result;
+	}
+
+	private ConditionEvaluationResult evaluateFailureThreshold() {
 		int failureThreshold = this.repetitionInfo.getFailureThreshold();
 		if (this.repetitionInfo.getFailureCount() >= failureThreshold) {
 			return disabled("Failure threshold [" + failureThreshold + "] exceeded");

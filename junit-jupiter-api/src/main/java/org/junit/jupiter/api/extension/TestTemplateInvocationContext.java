@@ -38,7 +38,11 @@ public interface TestTemplateInvocationContext {
 	 * <p>The supplied {@code invocationIndex} is incremented by the framework
 	 * with each test template invocation. Thus, in the case of multiple active
 	 * {@linkplain TestTemplateInvocationContextProvider providers}, only the
-	 * first active provider receives indices starting with {@code 1}.
+	 * first active provider receives indices starting with {@code 1}. If an
+	 * {@link org.junit.jupiter.api.InvocationComposition @InvocationComposition}
+	 * declaration places the active providers on several levels, indices are
+	 * counted per level and per enclosing invocation; within a level, they
+	 * continue across providers.
 	 *
 	 * <p>The default implementation returns the supplied {@code invocationIndex}
 	 * wrapped in brackets &mdash; for example, {@code [1]}, {@code [42]}, etc.
@@ -56,7 +60,12 @@ public interface TestTemplateInvocationContext {
 	 * <p>The extensions provided by this method will only be used for this
 	 * invocation of the test template. Thus, it does not make sense to return
 	 * an extension that needs to perform some action at the container level,
-	 * such as an implementation of {@link BeforeAllCallback}.
+	 * such as an implementation of {@link BeforeAllCallback}. If this invocation
+	 * has nested invocations due to an
+	 * {@link org.junit.jupiter.api.InvocationComposition @InvocationComposition}
+	 * declaration, the extensions are used for this invocation and for all
+	 * invocations nested in it; see
+	 * {@link TestTemplateInvocationContextProvider#mayEncloseTestTemplateInvocations}.
 	 *
 	 * <p>The default implementation returns an empty list.
 	 *
@@ -73,6 +82,15 @@ public interface TestTemplateInvocationContext {
 	 * <p>This may be used, for example, to store entries in the
 	 * {@link ExtensionContext.Store Store} to benefit from its cleanup support
 	 * or for retrieval by other extensions.
+	 *
+	 * <p>If this invocation has nested invocations due to an
+	 * {@link org.junit.jupiter.api.InvocationComposition @InvocationComposition}
+	 * declaration, the supplied context is the context of this invocation, which
+	 * is the parent of the contexts of all nested invocations. It provides a test
+	 * instance only if the
+	 * {@link org.junit.jupiter.api.TestInstance.Lifecycle#PER_CLASS PER_CLASS}
+	 * lifecycle is used, and its {@code Store} is closed after all nested
+	 * invocations have finished.
 	 *
 	 * @param context the invocation-level extension context
 	 * @since 5.13

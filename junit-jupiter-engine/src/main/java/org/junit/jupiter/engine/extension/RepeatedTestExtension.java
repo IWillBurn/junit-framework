@@ -36,6 +36,20 @@ class RepeatedTestExtension implements TestTemplateInvocationContextProvider {
 		return isAnnotated(context.getTestMethod(), RepeatedTest.class);
 	}
 
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>A repetition may enclose nested invocations: its
+	 * {@link RepetitionExtension} counts a failed repetition at most once and
+	 * evaluates the failure threshold once per repetition.
+	 *
+	 * @since 6.2
+	 */
+	@Override
+	public boolean mayEncloseTestTemplateInvocations(ExtensionContext context) {
+		return true;
+	}
+
 	@Override
 	public Stream<RepeatedTestInvocationContext> provideTestTemplateInvocationContexts(ExtensionContext context) {
 		Method testMethod = context.getRequiredTestMethod();

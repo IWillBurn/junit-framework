@@ -10,6 +10,7 @@
 
 package org.junit.jupiter.api.extension;
 
+import static org.apiguardian.api.API.Status.EXPERIMENTAL;
 import static org.apiguardian.api.API.Status.MAINTAINED;
 import static org.apiguardian.api.API.Status.STABLE;
 
@@ -40,11 +41,27 @@ import org.apiguardian.api.API;
  * test template method, the {@code Streams} returned by their
  * {@link #provideTestTemplateInvocationContexts} methods will be chained, and
  * the test template method will be invoked using the contexts of all active
- * providers.
+ * providers, unless an {@link org.junit.jupiter.api.InvocationComposition
+ * @InvocationComposition} declaration places some of them on separate levels;
+ * within a level, the {@code Streams} of all active providers are always
+ * chained.
  *
  * <p>An active provider may return zero invocation contexts from its
  * {@link #provideTestTemplateInvocationContexts} method if it overrides
  * {@link #mayReturnZeroTestTemplateInvocationContexts} to return {@code true}.
+ *
+ * <h2>Nested Levels</h2>
+ *
+ * <p>If an {@code @InvocationComposition} declaration places a provider on a
+ * nested level, the provider is asked for support and for invocation contexts
+ * once per invocation of the enclosing level, each time with the extension
+ * context of that enclosing invocation. Consequently, state that the provider
+ * stores in the {@link ExtensionContext.Store Store} of the supplied context is
+ * kept separately per enclosing invocation, while state stored in the
+ * {@code Store} of an enclosing context remains visible to all nested
+ * invocations. A provider whose invocations would contain nested invocations
+ * must declare that it supports this via
+ * {@link #mayEncloseTestTemplateInvocations}.
  *
  * <h2>Constructor Requirements</h2>
  *
@@ -63,7 +80,9 @@ public interface TestTemplateInvocationContextProvider extends Extension {
 	 * test template method represented by the supplied {@code context}.
 	 *
 	 * @param context the extension context for the test template method about
-	 * to be invoked; never {@code null}
+	 * to be invoked or, if this provider forms a nested level of an
+	 * {@link org.junit.jupiter.api.InvocationComposition @InvocationComposition},
+	 * the extension context of the enclosing invocation; never {@code null}
 	 * @return {@code true} if this provider can provide invocation contexts
 	 * @see #provideTestTemplateInvocationContexts
 	 * @see ExtensionContext
@@ -82,8 +101,15 @@ public interface TestTemplateInvocationContextProvider extends Extension {
 	 * {@link Stream#close()}, making it safe to use a resource such as
 	 * {@link java.nio.file.Files#lines(java.nio.file.Path) Files.lines()}.
 	 *
+	 * <p>If this provider forms a nested level of an
+	 * {@link org.junit.jupiter.api.InvocationComposition @InvocationComposition},
+	 * {@link #supportsTestTemplate} and this method are invoked once per
+	 * enclosing invocation, both with the extension context of that invocation.
+	 *
 	 * @param context the extension context for the test template method about
-	 * to be invoked; never {@code null}
+	 * to be invoked or, if this provider forms a nested level of an
+	 * {@link org.junit.jupiter.api.InvocationComposition @InvocationComposition},
+	 * the extension context of the enclosing invocation; never {@code null}
 	 * @return a {@code Stream} of {@code TestTemplateInvocationContext}
 	 * instances for the invocation of the test template method; never {@code null}
 	 * @throws TemplateInvocationValidationException if validation fails while
@@ -105,7 +131,9 @@ public interface TestTemplateInvocationContextProvider extends Extension {
 	 * the absence of invocation contexts for this provider.
 	 *
 	 * @param context the extension context for the test template method about
-	 * to be invoked; never {@code null}
+	 * to be invoked or, if this provider forms a nested level of an
+	 * {@link org.junit.jupiter.api.InvocationComposition @InvocationComposition},
+	 * the extension context of the enclosing invocation; never {@code null}
 	 * @return {@code true} to allow zero contexts, {@code false} to fail
 	 * execution in case of zero contexts
 	 *
@@ -113,6 +141,59 @@ public interface TestTemplateInvocationContextProvider extends Extension {
 	 */
 	@API(status = MAINTAINED, since = "5.13.3")
 	default boolean mayReturnZeroTestTemplateInvocationContexts(ExtensionContext context) {
+		return false;
+	}
+
+	/**
+	 * Signal that the invocations provided by this provider may have nested
+	 * invocations, i.e., that they may be placed on a level that is not the
+	 * innermost one when an
+	 * {@link org.junit.jupiter.api.InvocationComposition @InvocationComposition}
+	 * declaration applies to the test template method.
+	 *
+	 * <p>If this method returns {@code true}, each invocation of this provider
+	 * that has nested invocations is executed as a container instead of a test:
+	 * <ul>
+	 * <li>The {@linkplain TestTemplateInvocationContext#getAdditionalExtensions()
+	 * additional extensions} of the invocation context are registered once for
+	 * that invocation and apply to all invocations nested in it, possibly
+	 * concurrently. For example, an {@link ExecutionCondition} is evaluated for
+	 * that invocation and again for each nested invocation, while a
+	 * {@link TestWatcher} or {@link ParameterResolver} acts on every nested
+	 * test. Argument payloads held by those extensions are shared by all nested
+	 * invocations accordingly.</li>
+	 * <li>{@link TestTemplateInvocationContext#prepareInvocation(ExtensionContext)}
+	 * is called once with the extension context of that invocation, which
+	 * provides a test instance only if the
+	 * {@link org.junit.jupiter.api.TestInstance.Lifecycle#PER_CLASS PER_CLASS}
+	 * lifecycle is used. Resources stored in its
+	 * {@link ExtensionContext.Store Store} are closed after all nested
+	 * invocations have finished.</li>
+	 * <li>The providers of the next level are asked for support and for
+	 * invocation contexts with the extension context of that invocation.</li>
+	 * </ul>
+	 *
+	 * <p>If this method returns {@code false} (which is the default) and this
+	 * provider would have to provide invocations with nested invocations, the
+	 * test template fails without executing any invocation.
+	 *
+	 * <p>This method is only called if an {@code @InvocationComposition}
+	 * declaration places the active providers of the test template on more than
+	 * one level, at most once per execution of the test template, and only for
+	 * providers on a level that is not the innermost one. It is always called
+	 * with the extension context for the test template method, even if this
+	 * provider forms a nested level whose invocation contexts are later provided
+	 * for the contexts of enclosing invocations.
+	 *
+	 * @param context the extension context for the test template method about
+	 * to be invoked; never {@code null}
+	 * @return {@code true} if invocations of this provider may have nested
+	 * invocations, {@code false} otherwise
+	 * @since 6.2
+	 * @see org.junit.jupiter.api.InvocationComposition
+	 */
+	@API(status = EXPERIMENTAL, since = "6.2")
+	default boolean mayEncloseTestTemplateInvocations(ExtensionContext context) {
 		return false;
 	}
 

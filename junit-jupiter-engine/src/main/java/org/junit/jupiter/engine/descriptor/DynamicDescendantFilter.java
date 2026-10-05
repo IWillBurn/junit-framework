@@ -82,6 +82,35 @@ public class DynamicDescendantFilter implements BiPredicate<UniqueId, Integer> {
 		return new WithoutIndexFiltering();
 	}
 
+	/**
+	 * Create a filter for the dynamic descendants of the admitted dynamic
+	 * descendant with the supplied unique ID and zero-based index.
+	 *
+	 * <p>If the descendant itself or one of its ancestors was selected by its
+	 * unique ID, if it was selected by its index, or if everything is allowed,
+	 * all of its descendants are allowed. Otherwise, only the descendants with
+	 * a unique ID that was selected below the supplied one are allowed.
+	 *
+	 * <p>Only used for the invocations of composed test templates.
+	 *
+	 * @since 6.2
+	 */
+	DynamicDescendantFilter forDescendantsOf(UniqueId uniqueId, int index) {
+		DynamicDescendantFilter filter = new DynamicDescendantFilter();
+		if (this.mode == Mode.ALLOW_ALL || isEverythingAllowed() || this.allowedIndices.contains(index)
+				|| this.allowedUniqueIds.stream().anyMatch(uniqueId::hasPrefix)) {
+			filter.allowAll();
+			return filter;
+		}
+		this.allowedUniqueIds.stream() //
+				.filter(allowedUniqueId -> allowedUniqueId.hasPrefix(uniqueId)) //
+				.forEach(filter.allowedUniqueIds::add);
+		if (filter.allowedUniqueIds.isEmpty()) {
+			filter.allowAll();
+		}
+		return filter;
+	}
+
 	private enum Mode {
 		EXPLICIT, ALLOW_ALL
 	}

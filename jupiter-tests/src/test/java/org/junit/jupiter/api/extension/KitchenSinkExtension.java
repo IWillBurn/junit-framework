@@ -187,6 +187,11 @@ public class KitchenSinkExtension implements
 		return false;
 	}
 
+	@Override
+	public boolean mayEncloseTestTemplateInvocations(ExtensionContext context) {
+		return false;
+	}
+
 	// --- @ClassTemplate -------------------------------------------------------
 
 	@Override

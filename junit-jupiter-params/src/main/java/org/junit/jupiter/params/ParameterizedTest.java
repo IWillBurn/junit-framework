@@ -83,6 +83,24 @@ import org.junit.jupiter.params.provider.ArgumentsSource;
  * to create a custom <em>composed annotation</em> that inherits the semantics
  * of {@code @ParameterizedTest}.
  *
+ * <h2>Composition</h2>
+ *
+ * <p>If an {@link org.junit.jupiter.api.InvocationComposition @InvocationComposition}
+ * declaration places the invocations of other test template providers, such as
+ * those of an extension that is registered via an annotation listed in
+ * {@link org.junit.jupiter.api.InvocationComposition#levels() levels}, on a
+ * level below the invocations of a {@code @ParameterizedTest} method, each
+ * set of arguments becomes a container for its nested invocations. In that case,
+ * the arguments of one invocation, including their payloads, are shared by all
+ * of its nested invocations; arguments that are {@link AutoCloseable} are closed
+ * after all nested invocations have finished. Argument values that are mutated
+ * by a test should therefore be immutable or supplied anew by the test itself.
+ * Conversely, if a {@code @ParameterizedTest} method forms a nested level, its
+ * arguments sources are evaluated anew for each enclosing invocation. A
+ * parameterized test method may declare further parameters, such as those
+ * resolved for the invocations of a nested level, after its indexed parameters
+ * and aggregators.
+ *
  * <h2>Inheritance</h2>
  *
  * <p>{@code @ParameterizedTest} methods are inherited from superclasses as long

@@ -55,6 +55,21 @@ class ParameterizedTestExtension extends ParameterizedInvocationContextProvider<
 		return getDeclarationContext(extensionContext).isAllowingZeroInvocations();
 	}
 
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>An invocation of a {@code @ParameterizedTest} method may enclose nested
+	 * invocations: its arguments are resolved for all nested invocations, and
+	 * {@link AutoCloseable} arguments as well as the {@code ParameterInfo} are
+	 * stored in the {@code Store} of the enclosing invocation.
+	 *
+	 * @since 6.2
+	 */
+	@Override
+	public boolean mayEncloseTestTemplateInvocations(ExtensionContext extensionContext) {
+		return true;
+	}
+
 	private ParameterizedTestContext getDeclarationContext(ExtensionContext extensionContext) {
 		return requireNonNull(getStore(extensionContext)//
 				.get(DECLARATION_CONTEXT_KEY, ParameterizedTestContext.class));

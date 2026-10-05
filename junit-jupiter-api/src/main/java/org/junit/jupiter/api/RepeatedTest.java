@@ -44,6 +44,27 @@ import org.apiguardian.api.API;
  * create a custom <em>composed annotation</em> that inherits the semantics
  * of {@code @RepeatedTest}.
  *
+ * <h2>Composition</h2>
+ *
+ * <p>If {@code @RepeatedTest} is combined with other test template annotations
+ * on the same method, for example with {@code @ParameterizedTest}, the
+ * repetitions are chained with the other invocations by default. An
+ * {@link InvocationComposition @InvocationComposition} declaration may place
+ * the invocations of the other providers on a level <em>below</em> the
+ * repetitions, for example
+ * {@code @InvocationComposition(levels = ParameterizedTest.class)}, so that
+ * each repetition becomes a container for its nested invocations. In that
+ * case, a repetition counts as failed if at least one of its nested tests
+ * fails, and a repetition that is disabled because the
+ * {@linkplain #failureThreshold() failure threshold} has been exceeded is
+ * skipped as a whole.
+ *
+ * <p>The repetitions themselves cannot form a nested level:
+ * {@code RepeatedTest} is not annotated with
+ * {@link org.junit.jupiter.api.extension.ExtendWith @ExtendWith}, so listing it
+ * in {@link InvocationComposition#levels()} is a configuration error, and the
+ * repetitions always stay on the outermost level.
+ *
  * <h2>Inheritance</h2>
  *
  * <p>{@code @RepeatedTest} methods are inherited from superclasses as long as
@@ -74,6 +95,7 @@ import org.apiguardian.api.API;
  *
  * @since 5.0
  * @see DisplayName
+ * @see InvocationComposition
  * @see RepetitionInfo
  * @see TestTemplate
  * @see TestInfo
